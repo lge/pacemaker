@@ -410,10 +410,11 @@ clone_print(resource_t * rsc, const char *pre_text, long options, void *print_da
         type = "Master/Slave";
     }
 
-    status_print("%s%s Set: %s [%s]%s%s",
+    status_print("%s%s Set: %s [%s]%s%s%s",
                  pre_text ? pre_text : "", type, rsc->id, ID(clone_data->xml_obj_child),
                  is_set(rsc->flags, pe_rsc_unique) ? " (unique)" : "",
-                 is_set(rsc->flags, pe_rsc_managed) ? "" : " (unmanaged)");
+                 is_set(rsc->flags, pe_rsc_managed) ? "" : " (unmanaged)",
+                 is_set_recursive(rsc, pe_rsc_degraded, TRUE) ? " (degraded)" : "");
 
     if (options & pe_print_html) {
         status_print("\n<ul>\n");
@@ -439,6 +440,8 @@ clone_print(resource_t * rsc, const char *pre_text, long options, void *print_da
 
         } else if (is_set_recursive(child_rsc, pe_rsc_unique, TRUE)
                    || is_set_recursive(child_rsc, pe_rsc_orphan, TRUE)
+                   || is_set_recursive(child_rsc, pe_rsc_neg_loc, TRUE)
+                   || is_set_recursive(child_rsc, pe_rsc_degraded, TRUE)
                    || is_set_recursive(child_rsc, pe_rsc_managed, FALSE) == FALSE
                    || is_set_recursive(child_rsc, pe_rsc_failed, TRUE)) {
 

@@ -471,6 +471,72 @@ refresh:
 }
 #endif
 
+struct expected_master_score_info {
+    const char *glob;
+    const char *good_value;
+    int good_val;
+};
+
+GListPtr expected_master_scores;
+static void expected_master_score_add(const char *arg)
+{
+    struct expected_master_score_info info;
+    struct expected_master_score_info *entry;
+    static const char delim[] = " \t\n";
+    char *dup;
+    char *glob_sep_val;
+    char *next;
+    char *sep;
+    char *save;
+
+    if (!arg)
+        return;
+
+    dup = strdup(arg);
+    next = strtok_r(dup, delim, &save);
+    for (;;) {
+        glob_sep_val = next;
+        next = strtok_r(NULL, delim, &save);
+
+        if (!glob_sep_val)
+            break;
+
+        sep = strchr(glob_sep_val, ':');
+        if (!sep) /* silently ignore malformed entry */
+            continue;
+        *sep++ = '\0';
+
+        info.glob = glob_sep_val;
+        info.good_value = sep;
+        info.good_val = crm_parse_int(sep, NULL);
+
+        if (errno) /* silently ignore malformed entry */
+            continue;
+
+        entry = malloc(sizeof(*entry));
+        entry->glob = info.glob;
+        entry->good_value = info.good_value;
+        entry->good_val = info.good_val;
+
+        expected_master_scores = g_list_append(expected_master_scores, entry);
+    }
+}
+
+static const int expected_master_score_value(const char *clone_name)
+{
+    GListPtr gIter;
+    if (!clone_name)
+        return 0;
+
+    for (gIter = expected_master_scores; gIter; gIter = gIter->next) {
+        struct expected_master_score_info *info = gIter->data;
+        if (strstr(clone_name, info->glob))
+            return info->good_val;
+    }
+    return 0;
+}
+
+
 int
 main(int argc, char **argv)
 {
@@ -615,6 +681,8 @@ main(int argc, char **argv)
     if (argerr) {
         crm_help('?', EX_USAGE);
     }
+
+    expected_master_score_add(getenv("CRM_MON_expected_master_score"));
 
     if (one_shot) {
         as_console = FALSE;
@@ -1232,6 +1300,65 @@ print_status(pe_working_set_t * data_set)
     print_as("%d Resources configured.\n", count_resources(data_set, NULL));
     print_as("\n\n");
 
+    if (print_tickets || print_neg_location_prefix) {
+        /* For recording the tickets that are referenced in rsc_ticket constraints
+         * but have never been granted yet.
+         * To be able to print negative location constraint summary,
+         * we also need them to be unpacked. */
+        xmlNode *cib_constraints = get_object_root(XML_CIB_TAG_CONSTRAINTS, data_set->input);
+        unpack_constraints(cib_constraints, data_set);
+    }
+
+    /* propagate pe_rsc_degraded and pe_rsc_neg_loc */
+    for (gIter = data_set->nodes; gIter != NULL; gIter = gIter->next) {
+        node_t *node = (node_t *) gIter->data;
+        GListPtr gIter2;
+
+        for (gIter2 = node->details->running_rsc; gIter2 != NULL; gIter2 = gIter2->next) {
+            resource_t *rsc = (resource_t *) gIter2->data;
+            const char *master_attr_name;
+            const char *value;
+            int val, expected;
+
+            if (!rsc->clone_name)
+                continue;
+
+            expected = expected_master_score_value(rsc->clone_name);
+            if (!expected)
+                continue;
+
+            master_attr_name = crm_concat("master", rsc->clone_name, '-');
+            value = g_hash_table_lookup(node->details->attrs, master_attr_name);
+
+            val = crm_parse_int(value, "0");
+            if (val < expected)
+		rsc->flags |= pe_rsc_degraded;
+            free((char*)master_attr_name);
+        }
+    }
+
+    for (gIter = data_set->placement_constraints; gIter != NULL; gIter = gIter->next) {
+        rsc_to_node_t *location = (rsc_to_node_t *) gIter->data;
+        GListPtr gIter2, gIter3;
+
+        if (location->role_filter != RSC_ROLE_MASTER)
+            continue;
+
+        for (gIter2 = location->node_list_rh; gIter2 != NULL; gIter2 = gIter2->next) {
+            node_t *node = (node_t *) gIter2->data;
+            if (node->weight >= 0) /* != -INFINITY ??? */
+                continue;
+            for (gIter3 = location->rsc_lh->children; gIter3; gIter3 = gIter3->next) {
+                resource_t *child_rsc = gIter3->data;
+                node_t *where = child_rsc->fns->location(child_rsc, NULL, TRUE);
+                if (!where || strcmp(where->details->uname, node->details->uname))
+                    continue;
+
+                child_rsc->flags |= pe_rsc_neg_loc;
+            }
+        }
+    }
+
     for (gIter = data_set->nodes; gIter != NULL; gIter = gIter->next) {
         node_t *node = (node_t *) gIter->data;
         const char *node_mode = NULL;
@@ -1402,14 +1529,6 @@ print_status(pe_working_set_t * data_set)
         }
     }
 
-    if (print_tickets || print_neg_location_prefix) {
-        /* For recording the tickets that are referenced in rsc_ticket constraints
-         * but have never been granted yet.
-         * To be able to print negative location constraint summary,
-         * we also need them to be unpacked. */
-        xmlNode *cib_constraints = get_object_root(XML_CIB_TAG_CONSTRAINTS, data_set->input);
-        unpack_constraints(cib_constraints, data_set);
-    }
     if (print_tickets) {
         print_cluster_tickets(data_set);
     }

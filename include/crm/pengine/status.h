@@ -164,6 +164,9 @@ struct node_s {
 #  define pe_rsc_notify		0x00000010ULL
 #  define pe_rsc_unique		0x00000020ULL
 
+#  define pe_rsc_neg_loc	0x00000040ULL	/* if set, clone_print will add "fenced" */
+#  define pe_rsc_degraded	0x00000080ULL	/* if set, clone_print will add "degraded" */
+
 #  define pe_rsc_provisional	0x00000100ULL
 #  define pe_rsc_allocating	0x00000200ULL
 #  define pe_rsc_merging	0x00000400ULL

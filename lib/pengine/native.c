@@ -417,6 +417,12 @@ native_print(resource_t * rsc, const char *pre_text, long options, void *print_d
     if(node) {
         offset += snprintf(buffer + offset, LINE_MAX - offset, "%s ", node->details->uname);
     }
+    if(is_set(rsc->flags, pe_rsc_degraded)) {
+        offset += snprintf(buffer + offset, LINE_MAX - offset, "(degraded) ");
+    }
+    if(is_set(rsc->flags, pe_rsc_neg_loc)) {
+        offset += snprintf(buffer + offset, LINE_MAX - offset, "(fenced) ");
+    }
     if(is_not_set(rsc->flags, pe_rsc_managed)) {
         offset += snprintf(buffer + offset, LINE_MAX - offset, "(unmanaged) ");
     }
