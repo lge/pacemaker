@@ -1,4 +1,22 @@
 
+* Mon Dez 15 2014 Lars Ellenberg <lars.ellenberg@linbit.com> Pacemaker-1.1.12.linbit-1
+- Update source tarball to revision: Pacemaker-1.1.12-76-g0230d98
+- Changesets: 75
+- Diff:       19 files changed, 550 insertions(+), 53 deletions(-)
+
+- Changes since Pacemaker-1.1.12
+  + Bug rhbz#1067544 - Tools: Correctly handle --ban, --move and --locate for master/slave groups
+  + crmd: Disable debug logging that results in significant overhead
+  + crm_diff: Remove mention of --filter option from usage
+  + crm_mon: Repair notification delivery when the v2 patch format is in use
+  + fencing: Force 'stonith-ng' as the system name
+  + fix stonith ignoring its own messages on heartbeat
+  + lrmd: Handle systemd reporting 'done' before a resource is actually stopped
+  + lrmd: Log with the correct personality
+  + mcp: Ignore SIGHUP as early as possible
+  + mcp: Teach pacemakerd to ignore SIGHUP
+  + stonith-ng: Reset mainloop source IDs after removing them
+
 * Tue Jul 22 2014 Andrew Beekhof <andrew@beekhof.net> Pacemaker-1.1.12-1
 - Update source tarball to revision: 93a037d
 - Changesets: 795
